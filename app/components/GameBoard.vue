@@ -148,9 +148,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <h1 class="text-xl font-bold">Unlimited Pedantle</h1>
       <div class="flex items-center gap-2">
         <UBadge v-if="debug" color="warning" variant="solid">DEBUG</UBadge>
-        <UBadge color="neutral" variant="subtle">{{ wordsFound }}/{{ total }} words · {{ history.length }} guesses</UBadge>
         <UButton v-if="!ended" size="sm" color="neutral" variant="ghost" icon="i-lucide-flag" @click="finish(false)">Give up</UButton>
-        <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-rotate-ccw" @click="playAgain">New game</UButton>
+        <UButton v-else size="sm" color="primary" icon="i-lucide-rotate-ccw" @click="playAgain">Play again</UButton>
         <UColorModeButton />
       </div>
     </header>
@@ -198,17 +197,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     </div>
 
     <div
-      v-if="ended"
-      class="flex items-center justify-between gap-3 rounded-lg px-4 py-3 ring ring-inset"
-      :class="ended.won ? 'bg-success/10 text-success ring-success/25' : 'bg-warning/10 text-warning ring-warning/25'"
+      v-if="ended?.won"
+      class="flex items-center justify-between gap-3 rounded-lg px-4 py-3 ring ring-inset bg-success/10 text-success ring-success/25"
     >
       <div class="flex items-center gap-3 min-w-0">
-        <UIcon :name="ended.won ? 'i-lucide-trophy' : 'i-lucide-flag'" class="size-6 shrink-0" />
-        <span class="font-semibold text-lg truncate">{{ ended.won ? `You found it: ${ended.title}!` : `The article was: ${ended.title}` }}</span>
-      </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <UButton size="xl" color="neutral" variant="subtle" @click="peekAll">Reveal all</UButton>
-        <UButton size="xl" color="primary" @click="playAgain">Play again</UButton>
+        <UIcon name="i-lucide-trophy" class="size-6 shrink-0" />
+        <span class="font-semibold text-lg truncate">You found it: {{ ended.title }}!</span>
       </div>
     </div>
 
@@ -222,7 +216,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </form>
 
         <UCard>
-          <h2 class="text-3xl font-bold leading-snug mb-5">
+          <UBadge color="neutral" variant="subtle" size="sm" class="mb-3">{{ wordsFound }}/{{ total }} words · {{ history.length }} guesses</UBadge>
+          <div class="flex items-start justify-between gap-3 mb-5">
+          <h2 class="text-3xl font-bold leading-snug">
             <template v-for="{ t, i } in titleToks" :key="i">
               <GameWord v-if="'n' in t" :n="t.n" :text="textOf(i)" :near="nearOf(i)" :is-last-exact="lastExact.has(i)"
                 :last-sim="lastNear.get(i)" :full="ended && peeked[i] ? ended.words[i] : null" :clickable="!!ended" :debug="debug" :small="t.k === 'u'"
@@ -236,6 +232,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               <UIcon name="i-simple-icons-wikipedia" class="size-7" />
             </a>
           </h2>
+          <UButton v-if="ended" size="sm" color="neutral" variant="subtle" class="shrink-0" @click="peekAll">Reveal all</UButton>
+          </div>
 
           <p v-for="(para, pi) in bodyBlocks" :key="pi" class="leading-9 mb-3 text-lg">
             <template v-for="({ t, i }, pi2) in para" :key="i">
