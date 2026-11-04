@@ -10,6 +10,7 @@ const props = defineProps<{
   debug?: boolean
   small?: boolean // ordinal suffix (e, ème, st...)
   href?: string | null // link target, only used once the game is over and the word is shown
+  linkHot?: boolean // the link this word belongs to is hovered
 }>()
 const emit = defineEmits<{ peek: []; select: []; hover: [ev: MouseEvent]; leave: [] }>()
 
@@ -53,7 +54,8 @@ function onClick() {
       class="col-start-1 row-start-1"
       :class="[
         !revealed ? 'text-transparent select-none' : isLastExact ? 'text-success font-medium' : endHeat !== undefined ? 'text-neutral-900' : full && !text ? 'text-muted' : '',
-        href && revealed ? 'underline underline-offset-4 hover:text-primary' : ''
+        href && revealed ? 'underline underline-offset-4' : '',
+        linkHot ? 'text-primary!' : ''
       ]"
       :href="href && revealed ? href : undefined"
       :target="href && revealed ? '_blank' : undefined"

@@ -103,9 +103,12 @@ function showMatches(i: number, box: DOMRect) {
   endTip.value = rows.length ? { x: Math.max(8, box.left), y: box.bottom + 6, rows } : null
 }
 
-function onLeave() { tip.value = null; endTip.value = null }
+function onLeave() { tip.value = null; endTip.value = null; hoverLink.value = null }
+
+const hoverLink = ref<string | null>(null) // link under the cursor: all its words and the spaces between them light up
 
 async function onHover(i: number, ev: MouseEvent) {
+  hoverLink.value = i < game.value!.titleLen ? ended.value?.url ?? null : linkOf(i)
   const box = (ev.currentTarget as HTMLElement).getBoundingClientRect()
   if (!debug.value) return ended.value ? showMatches(i, box) : undefined
   const key = `${i}|${history.value.length}`
@@ -227,10 +230,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <template v-for="({ t, i }, ti) in titleToks" :key="i">
               <GameWord v-if="'n' in t" :n="t.n" :text="textOf(i)" :near="nearOf(i)" :is-last-exact="lastExact.has(i)"
                 :last-sim="lastNear.get(i)" :full="ended ? ended.words[i] : null" :clickable="!!ended" :debug="debug" :small="t.k === 'u'"
-                :href="ended?.url" @peek="onPeek(i)" @select="selectGuessAt(i)" @hover="onHover(i, $event)" @leave="onLeave" />
+                :href="ended?.url" :link-hot="!!ended && hoverLink === ended.url" @peek="onPeek(i)" @select="selectGuessAt(i)" @hover="onHover(i, $event)" @leave="onLeave" />
               <a
                 v-else-if="bridge(titleToks, ti, () => ended?.url)" :href="ended?.url" target="_blank" rel="noopener"
-                class="underline underline-offset-4 hover:text-primary" :class="{ 'text-muted': bridgeMuted(titleToks, ti) }"
+                class="underline underline-offset-4" :class="[bridgeMuted(titleToks, ti) ? 'text-muted' : '', hoverLink === ended?.url ? 'text-primary!' : '']"
+                @mouseenter="hoverLink = ended?.url ?? null" @mouseleave="hoverLink = null"
               >{{ t.s }}</a>
               <template v-else>{{ t.s }}</template>
             </template>
@@ -242,10 +246,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <template v-for="({ t, i }, pi2) in para" :key="i">
               <GameWord v-if="'n' in t" :n="t.n" :text="textOf(i)" :near="nearOf(i)" :is-last-exact="lastExact.has(i)"
                 :last-sim="lastNear.get(i)" :full="ended && peeked[i] ? ended.words[i] : null" :clickable="!!ended" :debug="debug" :small="t.k === 'u'"
-                :href="linkOf(i)" @peek="onPeek(i)" @select="selectGuessAt(i)" @hover="onHover(i, $event)" @leave="onLeave" />
+                :href="linkOf(i)" :link-hot="!!hoverLink && hoverLink === linkOf(i)" @peek="onPeek(i)" @select="selectGuessAt(i)" @hover="onHover(i, $event)" @leave="onLeave" />
               <a
                 v-else-if="bridge(para, pi2, linkOf)" :href="bridge(para, pi2, linkOf)!" target="_blank" rel="noopener"
-                class="underline underline-offset-4 hover:text-primary" :class="{ 'text-muted': bridgeMuted(para, pi2) }"
+                class="underline underline-offset-4" :class="[bridgeMuted(para, pi2) ? 'text-muted' : '', hoverLink === bridge(para, pi2, linkOf) ? 'text-primary!' : '']"
+                @mouseenter="hoverLink = bridge(para, pi2, linkOf)" @mouseleave="hoverLink = null"
               >{{ t.s }}</a>
               <template v-else>{{ t.s }}</template>
             </template>
