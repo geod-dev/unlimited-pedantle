@@ -53,20 +53,21 @@ function onPeek(i: number) {
 }
 
 // hover popover: similarity of the word under the cursor with the 3 closest guesses
-interface Tip { i: number; x: number; y: number; rows: { word: string; sim: number }[] | null }
+interface TipData { rows: { word: string; sim: number }[]; verbs: { lemma: string; forms: string[]; onPage: number }[] }
+interface Tip { i: number; x: number; y: number; data: TipData | null }
 const tip = ref<Tip | null>(null)
-const simCache = new Map<string, { word: string; sim: number }[]>()
+const simCache = new Map<string, TipData>()
 
 async function onHover(i: number, ev: MouseEvent) {
   const box = (ev.currentTarget as HTMLElement).getBoundingClientRect()
   const key = `${i}|${history.value.length}`
-  tip.value = { i, x: Math.max(8, box.left), y: box.bottom + 6, rows: simCache.get(key) ?? null }
+  tip.value = { i, x: Math.max(8, box.left), y: box.bottom + 6, data: simCache.get(key) ?? null }
   if (simCache.has(key)) return
-  const rows = await $fetch<{ word: string; sim: number }[]>(`/api/games/${game.value!.id}/debug-sim`, {
+  const data = await $fetch<TipData>(`/api/games/${game.value!.id}/debug-sim`, {
     method: 'POST', body: { i, words: history.value.map(h => h.word) }
   })
-  simCache.set(key, rows)
-  if (tip.value?.i === i) tip.value.rows = rows
+  simCache.set(key, data)
+  if (tip.value?.i === i) tip.value.data = data
 }
 
 function onKey(e: KeyboardEvent) {
@@ -98,15 +99,25 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       :style="{ left: tip.x + 'px', top: tip.y + 'px' }"
     >
       <div class="font-semibold mb-1">{{ debugWords?.[tip.i] ?? '…' }}</div>
-      <div v-if="!tip.rows" class="text-muted">…</div>
-      <div v-else-if="!tip.rows.length" class="text-muted">No similarity (stopword, number or no guess yet)</div>
-      <ul v-else class="space-y-0.5">
-        <li v-for="r in tip.rows" :key="r.word" class="flex items-center gap-2">
-          <span class="size-2.5 rounded-full shrink-0" :style="{ background: r.sim >= HEAT_MIN ? heatColor(r.sim) : 'var(--ui-border-accented)' }" />
-          <span class="flex-1">{{ r.word }}</span>
-          <span class="tabular-nums" :class="r.sim >= HEAT_MIN ? 'font-semibold' : 'text-muted'">{{ r.sim.toFixed(3) }}</span>
-        </li>
-      </ul>
+      <div v-if="!tip.data" class="text-muted">…</div>
+      <template v-else>
+        <div v-if="!tip.data.rows.length" class="text-muted">No similarity (stopword, number or no guess yet)</div>
+        <ul v-else class="space-y-0.5">
+          <li v-for="r in tip.data.rows" :key="r.word" class="flex items-center gap-2">
+            <span class="size-2.5 rounded-full shrink-0" :style="{ background: r.sim >= HEAT_MIN ? heatColor(r.sim) : 'var(--ui-border-accented)' }" />
+            <span class="flex-1">{{ r.word }}</span>
+            <span class="tabular-nums" :class="r.sim >= HEAT_MIN ? 'font-semibold' : 'text-muted'">{{ r.sim.toFixed(3) }}</span>
+          </li>
+        </ul>
+        <div v-for="v in tip.data.verbs" :key="v.lemma" class="mt-2 pt-2 border-t border-default max-w-xs">
+          <div class="flex items-center gap-1.5">
+            <UIcon name="i-lucide-spell-check" class="size-3.5 text-primary" />
+            <span class="font-medium">{{ v.lemma }}</span>
+            <span class="text-xs text-muted">· {{ v.onPage }} on this page</span>
+          </div>
+          <div class="text-xs text-muted mt-0.5 whitespace-normal">{{ v.forms.slice(0, 14).join(', ') }}{{ v.forms.length > 14 ? `… (${v.forms.length})` : '' }}</div>
+        </div>
+      </template>
     </div>
 
     <UAlert

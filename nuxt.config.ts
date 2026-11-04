@@ -15,9 +15,6 @@ export default defineNuxtConfig({
       meta: [{ name: 'description', content: 'Guess the hidden Wikipedia article, one word at a time.' }]
     }
   },
-  nitro: {
-    serverAssets: [{ baseName: 'verbs', dir: './node_modules/french-verbs-lefff/dist' }]
-  },
   runtimeConfig: {
     voyageApiKey: '',
     tursoDatabaseUrl: 'file:./data/local.db',

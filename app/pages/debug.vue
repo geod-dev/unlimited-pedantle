@@ -8,6 +8,7 @@ interface Compare {
   lang: string; a: string; b: string; existsA: boolean; existsB: boolean; total: number
   sim?: number; rankBinA?: number; rankAinB?: number
 }
+interface VerbResult { word: string; lang: string; lemmas: { lemma: string; forms: string[] }[] }
 interface WordList {
   words: { w: string; lang: string }[]; total: number; typed: string; have: string[]; langs: { lang: string; count: number }[]
 }
@@ -19,7 +20,12 @@ const route = useRoute()
 const router = useRouter()
 const q = (k: string, d = '') => String(route.query[k] ?? d)
 
-const tab = ref<'neighbours' | 'compare'>(q('tab') === 'compare' ? 'compare' : 'neighbours')
+type Tab = 'neighbours' | 'compare' | 'verbs'
+const tab = ref<Tab>(['compare', 'verbs'].includes(q('tab')) ? (q('tab') as Tab) : 'neighbours')
+const verbWord = ref(q('v'))
+const verbLang = ref(q('vl', 'fr'))
+const verbResult = ref<VerbResult | null>(null)
+const selectedVerbs = ref<VerbResult['lemmas']>([]) // verbs the selected word is a form of
 const selected = ref(q('w'))
 const selectedLang = ref(q('wl', 'fr'))
 const cmpLang = ref(q('cl', 'fr'))
@@ -58,6 +64,14 @@ const loadNeighbours = async () => {
   neighbours.value = selected.value
     ? await api('/api/debug/neighbors', { query: { w: selected.value, lang: selectedLang.value, k: 60 } })
     : null
+  selectedVerbs.value = selected.value
+    ? (await api<VerbResult>('/api/debug/verb', { query: { w: selected.value, lang: selectedLang.value } })).lemmas
+    : []
+}
+const loadVerb = async () => {
+  verbResult.value = verbWord.value.trim()
+    ? await api('/api/debug/verb', { query: { w: verbWord.value, lang: verbLang.value } })
+    : null
 }
 const loadCompare = async () => {
   compare.value = cmpA.value.trim() && cmpB.value.trim()
@@ -70,7 +84,8 @@ watchEffect(() => {
   router.replace({
     query: {
       tab: tab.value, w: selected.value || undefined, wl: selected.value ? selectedLang.value : undefined,
-      a: cmpA.value || undefined, b: cmpB.value || undefined, cl: cmpA.value || cmpB.value ? cmpLang.value : undefined
+      a: cmpA.value || undefined, b: cmpB.value || undefined, cl: cmpA.value || cmpB.value ? cmpLang.value : undefined,
+      v: verbWord.value || undefined, vl: verbWord.value ? verbLang.value : undefined
     }
   })
 })
@@ -82,7 +97,8 @@ const debounced = (fn: () => unknown, ms = 250) => {
 watch(search, debounced(loadList))
 watch([selected, selectedLang], debounced(loadNeighbours, 150))
 watch([cmpA, cmpB, cmpLang], debounced(loadCompare))
-onMounted(() => Promise.all([loadList(), loadNeighbours(), loadCompare()]).catch(() => {}))
+watch([verbWord, verbLang], debounced(loadVerb))
+onMounted(() => Promise.all([loadList(), loadNeighbours(), loadCompare(), loadVerb()]).catch(() => {}))
 
 async function compute(word: string, lang: string) {
   computing.value = `${word}|${lang}`
@@ -109,6 +125,11 @@ function compareWith(word: string) {
   tab.value = 'compare'
 }
 function swap() { [cmpA.value, cmpB.value] = [cmpB.value, cmpA.value] }
+function openVerb(word: string, lang: string) {
+  verbWord.value = word
+  verbLang.value = lang
+  tab.value = 'verbs'
+}
 
 const pct = (n: number) => `${Math.max(0, Math.min(1, n)) * 100}%`
 const barColor = (sim: number) => (isHint(sim) ? heatColor(sim) : 'var(--ui-border-accented)')
@@ -118,7 +139,8 @@ const verdict = computed(() => {
 })
 const tabs = [
   { label: 'Nearest words', value: 'neighbours', icon: 'i-lucide-radar' },
-  { label: 'Compare two words', value: 'compare', icon: 'i-lucide-git-compare-arrows' }
+  { label: 'Compare two words', value: 'compare', icon: 'i-lucide-git-compare-arrows' },
+  { label: 'Verbs', value: 'verbs', icon: 'i-lucide-spell-check' }
 ]
 const computingKey = (w: string, l: string) => computing.value === `${w}|${l}`
 </script>
@@ -200,6 +222,16 @@ const computingKey = (w: string, l: string) => computing.value === `${w}|${l}`
               <span class="text-xl" :title="neighbours.lang">{{ flag(neighbours.lang) }}</span>
               <span class="text-sm text-muted">among {{ neighbours.total }} {{ neighbours.lang }} words</span>
             </div>
+            <div v-if="selectedVerbs.length" class="mb-4 flex flex-wrap items-center gap-2 text-sm">
+              <UIcon name="i-lucide-spell-check" class="size-4 text-primary" />
+              <span class="text-muted">also a form of the verb</span>
+              <UButton
+                v-for="v in selectedVerbs" :key="v.lemma" size="xs" color="primary" variant="soft"
+                @click="openVerb(v.lemma, selectedLang)"
+              >
+                {{ v.lemma }} · {{ v.forms.length }} forms
+              </UButton>
+            </div>
             <ol class="space-y-1">
               <li v-for="(n, i) in neighbours.neighbours" :key="n.w" class="group flex items-center gap-2">
                 <span class="w-6 text-right text-xs text-muted tabular-nums">{{ i + 1 }}</span>
@@ -221,7 +253,7 @@ const computingKey = (w: string, l: string) => computing.value === `${w}|${l}`
         </UCard>
 
         <!-- compare -->
-        <UCard v-else>
+        <UCard v-else-if="tab === 'compare'">
           <div class="flex flex-wrap items-center gap-2 mb-3">
             <span class="text-sm text-muted">Language</span>
             <UButton
@@ -280,6 +312,48 @@ const computingKey = (w: string, l: string) => computing.value === `${w}|${l}`
           </div>
 
           <p v-else class="mt-8 mb-4 text-center text-muted">Type two words of the same language to compare them. Unknown words can be computed on the spot.</p>
+        </UCard>
+
+        <!-- verbs -->
+        <UCard v-else>
+          <p class="text-sm text-muted mb-3">
+            In the game, guessing any form of a verb uncovers every other form found on the page.
+            Same system in French (Lefff table) and English (irregular table + rules). Other languages: exact matches only.
+          </p>
+          <div class="flex flex-wrap items-center gap-2 mb-3">
+            <span class="text-sm text-muted">Language</span>
+            <UButton
+              v-for="l in ['fr', 'en']" :key="l" size="sm" :color="l === verbLang ? 'primary' : 'neutral'"
+              :variant="l === verbLang ? 'solid' : 'outline'" @click="verbLang = l"
+            >
+              {{ flag(l) }} {{ l }}
+            </UButton>
+          </div>
+          <UInput v-model="verbWord" size="xl" icon="i-lucide-spell-check" placeholder="Any form: être, est, fût… / go, went, gone…" class="w-full" />
+
+          <div v-if="verbResult" class="mt-5 space-y-4">
+            <p v-if="!verbResult.lemmas.length" class="text-center text-muted py-6">
+              “{{ verbResult.word }}” is not a form of any known {{ verbLang === 'fr' ? 'French' : 'English' }} verb: a guess only matches the exact word.
+            </p>
+            <div v-for="v in verbResult.lemmas" :key="v.lemma" class="rounded-lg border border-default p-4">
+              <div class="flex items-baseline gap-2 mb-3">
+                <h3 class="text-xl font-bold">{{ v.lemma }}</h3>
+                <span class="text-sm text-muted">{{ v.forms.length }} forms</span>
+              </div>
+              <div class="flex flex-wrap gap-1.5">
+                <UBadge
+                  v-for="f in v.forms" :key="f" size="md" :color="f === verbResult.word ? 'primary' : 'neutral'"
+                  :variant="f === verbResult.word ? 'solid' : 'subtle'" class="cursor-pointer" @click="verbWord = f"
+                >
+                  {{ f }}
+                </UBadge>
+              </div>
+            </div>
+            <p v-if="verbResult.lemmas.length > 1" class="text-xs text-muted">
+              Several verbs share this spelling (e.g. “suis” is être and suivre): the game uncovers the forms of all of them, there is no grammar analysis.
+            </p>
+          </div>
+          <p v-else class="mt-8 mb-4 text-center text-muted">Type any conjugated form to see the verb and all its forms.</p>
         </UCard>
       </section>
     </div>

@@ -57,7 +57,7 @@ export default defineEventHandler(async (event) => {
   pushExact(direct)
   const matched = [...new Set(direct.map(i => lower((game.tokens[i] as { s: string }).s)))]
   // any conjugated form uncovers all the other forms of the same verb (être / est / fût / serai...)
-  for (const lemma of await verbLemmas(game.lang, typed)) pushExact(game.lemmaIndex.get(fold(lemma)) ?? [])
+  for (const lemma of await verbLemmas(game.lang, typed, true)) pushExact(game.lemmaIndex.get(lemma) ?? [])
   if (sfx) pushExact(game.index.get('sfx:' + sfx) ?? [])
 
   // ---- roman numerals: same rules as digits, only against roman tokens ----

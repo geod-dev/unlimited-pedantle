@@ -12,7 +12,7 @@
   "dependencies": {
     "@libsql/client": "^0.18.0",
     "@nuxt/ui": "^4.12.0",
-    "french-verbs-lefff": "^3.4.0",
+    "english-verbs-helper": "^3.4.0",
     "nuxt": "^4.6.4",
     "tailwindcss": "^4.3.4",
     "vue": "^3.5.44",

@@ -23,3 +23,6 @@ logs
 .env.*
 !.env.example
 data/
+
+# Vercel build output
+.vercel

@@ -2,7 +2,7 @@ import type { Tok } from '@/server/utils/text'
 import { useDb } from '@/server/utils/db'
 import { center, getEmbeddings, getMean } from '@/server/utils/embed'
 import { verbLemmas } from '@/server/utils/lemma'
-import { fold, lower } from '@/server/utils/text'
+import { lower } from '@/server/utils/text'
 
 export interface StoredGame {
   id: string
@@ -16,7 +16,7 @@ export interface StoredGame {
 export interface LoadedGame extends StoredGame {
   /** folded word (or 'sfx:<group>' for ordinal suffixes) -> token indexes */
   index: Map<string, number[]>
-  /** folded verb lemma -> token indexes of all its conjugated forms on the page */
+  /** verb lemma -> token indexes of all its conjugated forms on the page */
   lemmaIndex: Map<string, number[]>
   /** digit and roman numeral tokens, compared by value */
   numerals: { i: number; kind: 'n' | 'r'; v: number }[]
@@ -74,14 +74,14 @@ export async function hydrate(g: StoredGame): Promise<LoadedGame> {
       lwIndex.set(lw, [...(lwIndex.get(lw) ?? []), i])
     }
   })
+  // verb lemma -> every page token that is a form of it. Looked up with the exact spelling (accents included).
   const lemmaIndex = new Map<string, number[]>()
-  for (const [f, idx] of index) {
-    const first = g.tokens[idx[0]!]
-    if (!first || first.k !== 'w') continue
-    for (const lemma of await verbLemmas(g.lang, first.s)) {
-      const key = fold(lemma)
-      lemmaIndex.set(key, [...(lemmaIndex.get(key) ?? []), ...idx])
-    }
+  const lemmasOfWord = new Map<string, string[]>()
+  for (const [i, t] of g.tokens.entries()) {
+    if (t.k !== 'w') continue
+    const lw = lower(t.s)
+    if (!lemmasOfWord.has(lw)) lemmasOfWord.set(lw, await verbLemmas(g.lang, lw))
+    for (const lemma of lemmasOfWord.get(lw)!) lemmaIndex.set(lemma, [...(lemmaIndex.get(lemma) ?? []), i])
   }
   const all = await getEmbeddings([...lwIndex.keys()], g.lang)
   const mean = await getMean(g.lang)
