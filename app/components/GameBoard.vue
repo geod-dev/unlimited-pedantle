@@ -132,7 +132,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       variant="subtle"
       :icon="ended.won ? 'i-lucide-trophy' : 'i-lucide-flag'"
       :title="ended.won ? `You found it: ${ended.title}!` : `The article was: ${ended.title}`"
-      :description="`Solved in ${history.length} guesses. Click a rectangle to reveal a word.`"
+      :description="`${ended.won ? 'Solved in' : 'Gave up after'} ${history.length} guesses. Click a rectangle to reveal a word.`"
       :actions="[
         { label: 'Reveal all', color: 'neutral', variant: 'outline', onClick: peekAll },
         { label: 'Open article', color: 'neutral', variant: 'outline', to: ended.url, target: '_blank' },
