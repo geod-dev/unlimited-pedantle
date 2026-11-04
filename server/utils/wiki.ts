@@ -177,3 +177,17 @@ function pickText(extract: string): string {
   }
   return out.join('\n')
 }
+
+// ---- lead image (shown once the game is over) ----
+export interface LeadImage { src: string; width: number; height: number }
+
+export async function fetchLeadImage(lang: string, url: string): Promise<LeadImage | null> {
+  try {
+    const title = decodeURIComponent(new URL(url).pathname.slice(6)).replace(/_/g, ' ')
+    const j = await getJson(`${apiUrl(lang)}?${new URLSearchParams({
+      action: 'query', prop: 'pageimages', piprop: 'thumbnail', pithumbsize: '640', redirects: '1', titles: title, format: 'json', formatversion: '2'
+    })}`)
+    const t = j.query?.pages?.[0]?.thumbnail
+    return t?.source ? { src: t.source, width: t.width, height: t.height } : null
+  } catch { return null } // the image is a bonus
+}

@@ -278,7 +278,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </UCard>
       </section>
 
-      <aside class="lg:sticky lg:top-4">
+      <aside class="lg:sticky lg:top-4 space-y-4">
+        <UCard v-if="ended?.image" :ui="{ body: 'p-0 sm:p-0 overflow-hidden rounded-lg' }">
+          <a :href="ended.url" target="_blank" rel="noopener" class="block" :style="{ aspectRatio: `${ended.image.width} / ${ended.image.height}` }">
+            <img :src="ended.image.src" :alt="ended.title" class="size-full object-cover">
+          </a>
+        </UCard>
         <UCard :ui="{ header: 'px-3 py-2 sm:px-3', body: 'p-0 sm:p-0' }">
           <template #header>
             <div class="flex items-center gap-2">
