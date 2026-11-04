@@ -1,7 +1,7 @@
 import { loadGame } from '@/server/utils/game'
 import { candidatesFor, center, cosine, getEmbeddings } from '@/server/utils/embed'
 import { fold, isStop, lower, magnitude, normDigits, romanValue, suffixKey } from '@/server/utils/text'
-import { findSpellings } from '@/server/utils/lexicon'
+import { closestWord, findSpellings } from '@/server/utils/lexicon'
 import { verbLemmas } from '@/server/utils/lemma'
 
 // Keep in sync with HEAT_MIN / HEAT_MAX in app/composables/useGame.ts
@@ -77,7 +77,7 @@ export default defineEventHandler(async (event) => {
   // Several accent variants may match ("a" / "à"); they are all used.
   // (the lexicon also restores accents typed without them)
   const known = matched.length ? [] : isStop(f) ? await candidatesFor(f, game.lang) : await findSpellings(game.lang, typed)
-  if (!known.length && !matched.length && !isStop(f) && !exact.length) return { valid: false, reason: 'Unknown word' }
+  if (!known.length && !matched.length && !isStop(f) && !exact.length) return { valid: false, reason: 'Unknown word', suggestion: await closestWord(game.lang, typed) }
   const forms = matched.length ? matched : known.length ? known : [typed]
   const label = forms.join('/')
 

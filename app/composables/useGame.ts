@@ -36,6 +36,7 @@ export function useGame() {
   const ended = useState<Ended | null>('ended', () => null)
   const peeked = useState<Record<number, boolean>>('peeked', () => ({}))
   const pending = useState<{ id: number; word: string }[]>('pending', () => [])
+  const rejected = useState<{ word: string; reason: string; suggestion: string | null; n: number } | null>('rejected', () => null) // last refused word: the input stays red; n re-triggers the shake
   const busy = ref(false)
   const toast = useToast()
 
@@ -85,7 +86,7 @@ export function useGame() {
     busy.value = true
     try {
       const g = await $fetch<GameInfo>('/api/games', { method: 'POST', body: opts })
-      game.value = g; history.value = []; selected.value = -1; ended.value = null; peeked.value = {}; pending.value = []
+      game.value = g; history.value = []; selected.value = -1; ended.value = null; peeked.value = {}; pending.value = []; rejected.value = null
       persist()
     } catch (e: any) {
       toast.add({ title: 'Could not start a game', description: e?.data?.statusMessage ?? e?.statusMessage ?? 'Please retry.', color: 'error' })
@@ -103,7 +104,7 @@ export function useGame() {
     const again = history.value.findIndex(h => (h.typed ?? h.word) === word || h.word.split('/').includes(word))
     if (again >= 0) {
       selected.value = again
-      toast.add({ title: 'Already guessed', description: `“${word}” is highlighted again.`, color: 'neutral' })
+      rejected.value = null
       return true
     }
     if (pending.value.some(p => p.word === word)) return true
@@ -113,9 +114,10 @@ export function useGame() {
       const r = await $fetch<any>(`/api/games/${g.id}/guess`, { method: 'POST', body: { word } })
       if (game.value?.id !== g.id || ended.value) return false // new game or game over while waiting
       if (!r.valid) {
-        toast.add({ title: r.reason, description: `“${word}”`, color: 'warning' })
+        rejected.value = { word, reason: r.reason, suggestion: r.suggestion ?? null, n: (rejected.value?.n ?? 0) + 1 }
         return false
       }
+      rejected.value = null
       const dup = history.value.findIndex(h => h.word === r.word) // another spelling of a word already guessed
       if (dup >= 0) {
         selected.value = dup
@@ -144,7 +146,7 @@ export function useGame() {
   }
 
   function reset() {
-    game.value = null; history.value = []; selected.value = -1; ended.value = null; peeked.value = {}; pending.value = []
+    game.value = null; history.value = []; selected.value = -1; ended.value = null; peeked.value = {}; pending.value = []; rejected.value = null
     try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
   }
 
@@ -155,7 +157,7 @@ export function useGame() {
     peeked.value = all
   }
 
-  return { game, history, selected, ended, peeked, pending, busy, revealed, nearest, last, won, start, guess, finish, reset, restore, peek, peekAll, persist }
+  return { game, history, selected, ended, peeked, pending, rejected, busy, revealed, nearest, last, won, start, guess, finish, reset, restore, peek, peekAll, persist }
 }
 
 export function heatColor(sim: number): string {

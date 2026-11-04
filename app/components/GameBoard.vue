@@ -1,11 +1,23 @@
 <script setup lang="ts">
 const {
-  game, history, selected, ended, peeked, pending, revealed, nearest, last, won,
+  game, history, selected, ended, peeked, pending, rejected, revealed, nearest, last, won,
   guess, finish, reset, peek, peekAll
 } = useGame()
 
 const input = ref('')
 const inputEl = ref<{ inputRef?: HTMLInputElement } | null>(null)
+const formEl = ref<HTMLFormElement | null>(null)
+
+// picking another guess in the list clears the red state
+watch(selected, () => { rejected.value = null })
+// shake on every rejected word (restart the CSS animation even when it is already running)
+watch(() => rejected.value?.n, (n) => {
+  const el = formEl.value
+  if (!n || !el) return
+  el.classList.remove('shake')
+  void el.offsetWidth
+  el.classList.add('shake')
+})
 
 // not awaited: the guess loads in the background (loader in the guesses list) while the next word can already be typed
 function submit() {
@@ -16,10 +28,10 @@ function submit() {
   inputEl.value?.inputRef?.focus()
 }
 
-// the input takes the colour of the selected (last) guess: green when it uncovered words, else its heat colour
+// the input takes the colour of the selected (last) guess: green when it uncovered words, else its heat colour; red for a word that doesn't exist
 const inputStyle = computed(() => {
   const l = last.value
-  const color = !l ? null : l.exact.length ? 'var(--ui-success)' : l.best >= HEAT_MIN ? heatColor(l.best) : null
+  const color = rejected.value ? 'var(--ui-error)' : !l ? null : l.exact.length ? 'var(--ui-success)' : l.best >= HEAT_MIN ? heatColor(l.best) : null
   return color ? { '--tw-ring-color': color, backgroundColor: `color-mix(in oklab, ${color} 18%, transparent)` } : undefined
 })
 
@@ -216,11 +228,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
     <div class="grid gap-4 lg:grid-cols-[1fr_17rem] items-start">
       <section class="space-y-4 min-w-0">
-        <form v-if="!ended" class="sticky top-2 z-10 flex gap-2 bg-default/90 backdrop-blur rounded-lg p-1" @submit.prevent="submit">
+        <form v-if="!ended" ref="formEl" class="sticky top-2 z-10 flex flex-col gap-1 bg-default/90 backdrop-blur rounded-lg p-1" :class="{ 'rejected-form': rejected }" @submit.prevent="submit">
           <UInput
             ref="inputEl" v-model="input" size="xl" class="flex-1" autofocus autocomplete="off" autocapitalize="off"
-            spellcheck="false" :placeholder="last ? (last.typed ?? last.word) : 'Type a word…'" :style="inputStyle"
+            spellcheck="false" :placeholder="rejected ? rejected.word : last ? (last.typed ?? last.word) : 'Type a word…'" :style="inputStyle"
           />
+          <p v-if="rejected" class="px-1 text-xs text-error">
+            <template v-if="rejected.reason === 'Unknown word'">“{{ rejected.word }}” doesn't exist.</template>
+            <template v-else>{{ rejected.reason }}.</template>
+            <template v-if="rejected.suggestion">
+              Did you mean
+              <button type="button" class="font-semibold underline underline-offset-2 cursor-pointer" @click="guess(rejected.suggestion!)">{{ rejected.suggestion }}</button>?
+            </template>
+          </p>
         </form>
 
         <UCard>
@@ -291,3 +311,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     </div>
   </div>
 </template>
+
+<style scoped>
+.rejected-form :deep(input::placeholder) { color: var(--ui-error); opacity: 0.8; }
+.shake { animation: shake 0.4s ease-in-out; }
+@keyframes shake {
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+</style>

@@ -21,6 +21,38 @@ async function load(lang: string): Promise<ByFold> {
 }
 
 const MAX_SPELLINGS = 3
+const MAX_TYPO = 2
+
+/** Edit distance between a and b, or MAX_TYPO + 1 as soon as it is known to exceed MAX_TYPO. */
+function typoDistance(a: string, b: string): number {
+  if (Math.abs(a.length - b.length) > MAX_TYPO) return MAX_TYPO + 1
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i]
+    let min = i
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(prev[j]! + 1, cur[j - 1]! + 1, prev[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1))
+      if (cur[j]! < min) min = cur[j]!
+    }
+    if (min > MAX_TYPO) return MAX_TYPO + 1
+    prev = cur
+  }
+  return prev[b.length]!
+}
+
+/** The existing word closest to a mistyped one (at most MAX_TYPO edits away), or null. */
+export async function closestWord(lang: string, typed: string): Promise<string | null> {
+  let lex = lexicons.get(lang)
+  if (!lex) lexicons.set(lang, (lex = load(lang)))
+  const f = fold(typed)
+  let best: string | null = null
+  let bestDist = MAX_TYPO + 1
+  for (const [key, spelling] of await lex) {
+    const d = typoDistance(f, key)
+    if (d < bestDist) { bestDist = d; best = typeof spelling === 'string' ? spelling : spelling[0]!; if (d === 1) break }
+  }
+  return best
+}
 
 /**
  * Dictionary spellings a typed word stands for ("incarcerees" -> ["incarcérées"]): the word itself when it is valid,
