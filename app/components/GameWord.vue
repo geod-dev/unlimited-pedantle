@@ -9,6 +9,7 @@ const props = defineProps<{
   clickable?: boolean
   debug?: boolean
   small?: boolean // ordinal suffix (e, ème, st...)
+  href?: string | null // link target, only used once the game is over and the word is shown
 }>()
 const emit = defineEmits<{ peek: []; hover: [ev: MouseEvent]; leave: [] }>()
 
@@ -38,12 +39,17 @@ const interactive = computed(() => props.debug || (!revealed.value && props.clic
     @mouseenter="debug && emit('hover', $event)"
     @mouseleave="debug && emit('leave')"
   >
-    <span
+    <component
+      :is="href && revealed ? 'a' : 'span'"
       class="col-start-1 row-start-1"
       :class="[
-        !revealed ? 'text-transparent select-none' : isLastExact ? 'text-success font-medium' : full && !text ? 'text-muted underline decoration-dotted' : ''
+        !revealed ? 'text-transparent select-none' : isLastExact ? 'text-success font-medium' : full && !text ? 'text-muted' : '',
+        href && revealed ? 'underline underline-offset-4 hover:text-primary' : ''
       ]"
-    >{{ label }}</span>
+      :href="href && revealed ? href : undefined"
+      :target="href && revealed ? '_blank' : undefined"
+      :rel="href && revealed ? 'noopener' : undefined"
+    >{{ label }}</component>
     <span v-if="near && !revealed" class="col-start-1 row-start-1" :class="hot ? 'text-neutral-900' : ''">{{ near.word }}</span>
   </span>
 </template>

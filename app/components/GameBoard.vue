@@ -35,6 +35,12 @@ const total = computed(() => game.value!.tokens.filter(t => t.k !== 'p' && t.k !
 
 function playAgain() { reset() }
 
+// links only exist once the game is over: the title links to the article, body words to the pages the article links to
+const linkOf = (i: number) => {
+  const l = ended.value?.links?.[i]
+  return l ? `https://${game.value!.lang}.wikipedia.org/wiki/${l}` : null
+}
+
 // ---- hidden debug mode: Ctrl+Alt+D (or ?debug in the URL) lets you click any rectangle / word to show or hide it ----
 const debug = ref(false)
 const debugWords = ref<(string | null)[] | null>(null)
@@ -126,19 +132,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       </template>
     </div>
 
-    <UAlert
+    <div
       v-if="ended"
-      :color="ended.won ? 'success' : 'warning'"
-      variant="subtle"
-      :icon="ended.won ? 'i-lucide-trophy' : 'i-lucide-flag'"
-      :title="ended.won ? `You found it: ${ended.title}!` : `The article was: ${ended.title}`"
-      :description="`${ended.won ? 'Solved in' : 'Gave up after'} ${history.length} guesses. Click a rectangle to reveal a word.`"
-      :actions="[
-        { label: 'Reveal all', color: 'neutral', variant: 'outline', onClick: peekAll },
-        { label: 'Open article', color: 'neutral', variant: 'outline', to: ended.url, target: '_blank' },
-        { label: 'Play again', color: 'primary', onClick: playAgain }
-      ]"
-    />
+      class="flex items-center justify-between gap-3 rounded-lg px-4 py-3 ring ring-inset"
+      :class="ended.won ? 'bg-success/10 text-success ring-success/25' : 'bg-warning/10 text-warning ring-warning/25'"
+    >
+      <div class="flex items-center gap-3 min-w-0">
+        <UIcon :name="ended.won ? 'i-lucide-trophy' : 'i-lucide-flag'" class="size-6 shrink-0" />
+        <span class="font-semibold text-lg truncate">{{ ended.won ? `You found it: ${ended.title}!` : `The article was: ${ended.title}` }}</span>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <UButton size="xl" color="neutral" variant="subtle" @click="peekAll">Reveal all</UButton>
+        <UButton size="xl" color="primary" @click="playAgain">Play again</UButton>
+      </div>
+    </div>
 
     <div class="grid gap-4 lg:grid-cols-[1fr_17rem] items-start">
       <section class="space-y-4 min-w-0">
@@ -155,16 +162,22 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <template v-for="{ t, i } in titleToks" :key="i">
               <GameWord v-if="'n' in t" :n="t.n" :text="textOf(i)" :near="nearOf(i)" :is-last-exact="lastExact.has(i)"
                 :last-sim="lastNear.get(i)" :full="ended && peeked[i] ? ended.words[i] : null" :clickable="!!ended" :debug="debug" :small="t.k === 'u'"
-                @peek="onPeek(i)" @hover="onHover(i, $event)" @leave="tip = null" />
+                :href="ended?.url" @peek="onPeek(i)" @hover="onHover(i, $event)" @leave="tip = null" />
               <template v-else>{{ t.s }}</template>
             </template>
+            <a
+              v-if="ended" :href="ended.url" target="_blank" rel="noopener" title="Open on Wikipedia"
+              class="inline-block align-middle ml-2 opacity-40 hover:opacity-100 transition-opacity"
+            >
+              <UIcon name="i-simple-icons-wikipedia" class="size-7" />
+            </a>
           </h2>
 
           <p v-for="(para, pi) in bodyBlocks" :key="pi" class="leading-9 mb-3 text-lg">
             <template v-for="{ t, i } in para" :key="i">
               <GameWord v-if="'n' in t" :n="t.n" :text="textOf(i)" :near="nearOf(i)" :is-last-exact="lastExact.has(i)"
                 :last-sim="lastNear.get(i)" :full="ended && peeked[i] ? ended.words[i] : null" :clickable="!!ended" :debug="debug" :small="t.k === 'u'"
-                @peek="onPeek(i)" @hover="onHover(i, $event)" @leave="tip = null" />
+                :href="linkOf(i)" @peek="onPeek(i)" @hover="onHover(i, $event)" @leave="tip = null" />
               <template v-else>{{ t.s }}</template>
             </template>
           </p>
@@ -173,7 +186,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
       <aside class="lg:sticky lg:top-4">
         <UCard :ui="{ body: 'p-0 sm:p-0' }">
-          <template #header><span class="font-semibold">Guesses</span></template>
+          <template #header>
+            <div class="flex items-center gap-2">
+              <span class="font-semibold">Guesses</span>
+              <UBadge color="neutral" variant="subtle" size="sm">{{ history.length }}</UBadge>
+            </div>
+          </template>
           <ul class="max-h-[60vh] overflow-y-auto divide-y divide-default">
             <li v-if="!recent.length" class="p-4 text-sm text-muted">Nothing yet. Start with common words!</li>
             <li v-for="{ h, i } in recent" :key="i">
