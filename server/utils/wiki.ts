@@ -1,4 +1,4 @@
-import { fold, lower, tokenize, type Tok } from '@/server/utils/text'
+import { tokenize, type Tok } from '@/server/utils/text'
 
 const UA = { 'user-agent': 'unlimited-pedantle/1.0 (hobby word game)' }
 const GATE_WORDS = 180 // stop adding sentences once the text reaches this many words
@@ -103,55 +103,4 @@ function pickText(extract: string): string {
     if (words >= GATE_WORDS) break
   }
   return out.join('\n')
-}
-
-// ---- guess validation: dictionary spellings of a typed word, from Wiktionary / Wikipedia ----
-/**
- * The word itself when it is a Wiktionary/Wikipedia page; otherwise the accented spellings Wiktionary knows
- * ("incarcerees" -> ["incarcérées"]). Empty when the word doesn't exist.
- */
-export function findSpellings(lang: string, word: string): Promise<string[]> {
-  // Wikipedia throttles per IP, so each distinct word is looked up once; concurrent guesses share the same request.
-  const key = `${lang}:${word}`
-  const hit = spellingCache.get(key)
-  if (hit) return hit
-  const p = lookupSpellings(lang, word)
-  spellingCache.set(key, p)
-  p.catch(() => spellingCache.delete(key)) // never cache a failure: the next guess retries
-  return p
-}
-const spellingCache = new Map<string, Promise<string[]>>()
-
-async function lookupSpellings(lang: string, word: string): Promise<string[]> {
-  if (await wordExists(lang, word)) return [word]
-  try {
-    // Wiktionary's search ignores accents and returns the accented titles
-    const q = new URLSearchParams({
-      action: 'query', list: 'search', srsearch: word, srnamespace: '0', srlimit: '10', srprop: '', format: 'json', formatversion: '2'
-    })
-    const j = await getJson(`${apiUrl(lang, 'wiktionary')}?${q}`)
-    const f = fold(word)
-    const titles = (j.query?.search ?? []).map((s: { title: string }) => lower(s.title))
-    return [...new Set<string>(titles)].filter(t => /^\p{L}+$/u.test(t) && fold(t) === f).slice(0, 3)
-  } catch {
-    throw createError({ statusCode: 503, statusMessage: 'Dictionary is busy, please retry in a moment' })
-  }
-}
-
-async function wordExists(lang: string, word: string): Promise<boolean> {
-  const cap = word.charAt(0).toUpperCase() + word.slice(1)
-  const check = async (host: string, l: string, titles: string[]) => {
-    const q = new URLSearchParams({ action: 'query', titles: titles.join('|'), redirects: '1', format: 'json', formatversion: '2' })
-    const j = await getJson(`${apiUrl(l, host)}?${q}`)
-    return (j.query.pages as any[]).some(p => !p.missing && !p.invalid)
-  }
-  try {
-    // sequential, cheapest and most likely first: most guesses stop after a single request
-    if (await check('wiktionary', lang, [word])) return true
-    if (await check('wikipedia', lang, [cap, word])) return true
-    return lang !== 'en' && (await check('wikipedia', 'en', [cap]))
-  } catch {
-    // don't tell the player a real word is unknown just because Wikipedia is throttling us
-    throw createError({ statusCode: 503, statusMessage: 'Dictionary is busy, please retry in a moment' })
-  }
 }

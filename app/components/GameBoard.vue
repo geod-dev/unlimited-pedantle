@@ -54,7 +54,7 @@ function onPeek(i: number) {
 
 // hover popover: similarity of the word under the cursor with the 3 closest guesses
 interface TipData { rows: { word: string; sim: number }[]; verbs: { lemma: string; forms: string[]; onPage: number }[] }
-interface Tip { i: number; x: number; y: number; data: TipData | null }
+interface Tip { i: number; x: number; y: number; data: TipData | null; error?: string }
 const tip = ref<Tip | null>(null)
 const simCache = new Map<string, TipData>()
 
@@ -63,11 +63,16 @@ async function onHover(i: number, ev: MouseEvent) {
   const key = `${i}|${history.value.length}`
   tip.value = { i, x: Math.max(8, box.left), y: box.bottom + 6, data: simCache.get(key) ?? null }
   if (simCache.has(key)) return
-  const data = await $fetch<TipData>(`/api/games/${game.value!.id}/debug-sim`, {
-    method: 'POST', body: { i, words: history.value.map(h => h.word) }
-  })
-  simCache.set(key, data)
-  if (tip.value?.i === i) tip.value.data = data
+  try {
+    const data = await $fetch<TipData>(`/api/games/${game.value!.id}/debug-sim`, {
+      method: 'POST', body: { i, words: history.value.map(h => h.word) }
+    })
+    simCache.set(key, data)
+    if (tip.value?.i === i) tip.value.data = data
+  } catch (e: any) {
+    // 404 = the server has no NUXT_DEBUG_ENABLED=true (the debug API is dev-only by default)
+    if (tip.value?.i === i) tip.value.error = `${e?.statusCode ?? ''} ${e?.statusMessage ?? e?.message ?? 'request failed'}`.trim()
+  }
 }
 
 function onKey(e: KeyboardEvent) {
@@ -99,7 +104,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       :style="{ left: tip.x + 'px', top: tip.y + 'px' }"
     >
       <div class="font-semibold mb-1">{{ debugWords?.[tip.i] ?? '…' }}</div>
-      <div v-if="!tip.data" class="text-muted">…</div>
+      <div v-if="tip.error" class="text-error">Debug API error: {{ tip.error }}</div>
+      <div v-else-if="!tip.data" class="text-muted">…</div>
       <template v-else>
         <div v-if="!tip.data.rows.length" class="text-muted">No similarity (stopword, number or no guess yet)</div>
         <ul v-else class="space-y-0.5">

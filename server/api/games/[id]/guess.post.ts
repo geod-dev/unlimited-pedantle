@@ -1,7 +1,7 @@
 import { loadGame } from '@/server/utils/game'
 import { candidatesFor, center, cosine, getEmbeddings } from '@/server/utils/embed'
 import { fold, isStop, lower, magnitude, normDigits, romanValue, suffixKey } from '@/server/utils/text'
-import { findSpellings } from '@/server/utils/wiki'
+import { findSpellings } from '@/server/utils/lexicon'
 import { verbLemmas } from '@/server/utils/lemma'
 
 // Keep in sync with HEAT_MIN / HEAT_MAX in app/composables/useGame.ts
@@ -75,11 +75,9 @@ export default defineEventHandler(async (event) => {
   // ---- words: dictionary check, then embedding similarity ----
   // Dictionary spellings the guess stands for: the page words it matched, else spellings already known, else as typed.
   // Several accent variants may match ("a" / "à"); they are all used.
-  let known = matched.length ? [] : await candidatesFor(f, game.lang)
-  if (!known.length && !matched.length && !isStop(f)) {
-    known = await findSpellings(game.lang, typed) // also restores accents typed without them
-    if (!known.length && !exact.length) return { valid: false, reason: 'Unknown word' }
-  }
+  // (the lexicon also restores accents typed without them)
+  const known = matched.length ? [] : isStop(f) ? await candidatesFor(f, game.lang) : await findSpellings(game.lang, typed)
+  if (!known.length && !matched.length && !isStop(f) && !exact.length) return { valid: false, reason: 'Unknown word' }
   const forms = matched.length ? matched : known.length ? known : [typed]
   const label = forms.join('/')
 

@@ -1,13 +1,13 @@
 import { loadGame } from '@/server/utils/game'
 import { center, cosine, getCachedEmbeddings } from '@/server/utils/embed'
-import { assertDebug, round4 } from '@/server/utils/debug'
+import { round4 } from '@/server/utils/debug'
 import { isVerb, verbForms, verbLemmas } from '@/server/utils/lemma'
 import { lower } from '@/server/utils/text'
 
-// Debug only, for the hover popover on a word of the page: the verbs it is a form of (what a guess would uncover
+// For the debug hover popover (no assertDebug: it only reads cached vectors, never spends credits, and /reveal is already open)
+// Hover popover on a word of the page: the verbs it is a form of (what a guess would uncover
 // together), and its similarity with the 3 closest guesses.
 export default defineEventHandler(async (event) => {
-  assertDebug()
   const game = await loadGame(getRouterParam(event, 'id')!)
   const { i, words } = await readBody<{ i: number; words: string[] }>(event)
   const tok = game.tokens[i]
