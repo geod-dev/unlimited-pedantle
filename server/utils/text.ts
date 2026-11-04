@@ -1,7 +1,7 @@
 export type Tok =
-  | { k: 'w'; s: string; f: string; sw: boolean } // word (embedded unless stopword)
-  | { k: 'n'; s: string; f: string; v: number } // digits, never embedded
-  | { k: 'r'; s: string; f: string; v: number } // roman numeral, never embedded
+  | { k: 'w'; s: string; f: string; sw: boolean; l?: string } // word (embedded unless stopword), l = wiki link target
+  | { k: 'n'; s: string; f: string; v: number; l?: string } // digits, never embedded
+  | { k: 'r'; s: string; f: string; v: number; l?: string } // roman numeral, never embedded
   | { k: 'u'; s: string; f: string } // ordinal suffix after a number (e, ème, er, st, nd...), f = 'sfx:<group>'
   | { k: 'p'; s: string }
   | { k: 'br' }

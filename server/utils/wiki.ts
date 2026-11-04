@@ -98,12 +98,51 @@ export async function fetchArticle(lang: string, rawTitle: string): Promise<Arti
   const titleToks = tokenize(title, lang)
   const bodyToks = tokenize(body, lang)
   if (bodyToks.filter(t => t.k === 'w').length < 60) return null
+  await markLinks(lang, page.title as string, bodyToks)
   return {
     title,
     url: `https://${lang}.wikipedia.org/wiki/${encodeURIComponent((page.title as string).replace(/ /g, '_'))}`,
     tokens: [...titleToks, ...bodyToks],
     titleLen: titleToks.length
   }
+}
+
+// ---- links: the plain-text extract has none, so read them from the rendered page and align them with the words ----
+type LinkableTok = Extract<Tok, { k: 'w' | 'n' | 'r' }>
+const linkable = (t: Tok): t is LinkableTok => t.k === 'w' || t.k === 'n' || t.k === 'r'
+const LINK_WINDOW = 40 // a real link shows up soon after the previous one; anything further is a false match
+
+function pageLinks(html: string): { text: string; href: string }[] {
+  const body = html.replace(/<(table|style|sup)\b[\s\S]*?<\/\1>/gi, '') // infoboxes, references
+  const out: { text: string; href: string }[] = []
+  for (const p of body.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)) {
+    for (const a of p[1]!.matchAll(/<a\b[^>]*href="\/wiki\/([^"#?]+)[^"]*"[^>]*>([\s\S]*?)<\/a>/gi)) {
+      if (/:|%3A/i.test(a[1]!)) continue // File:, Category:...
+      const text = a[2]!.replace(/<[^>]+>/g, '').replace(/&nbsp;|&#160;/g, ' ').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+      out.push({ text, href: a[1]! })
+    }
+  }
+  return out
+}
+
+async function markLinks(lang: string, pageTitle: string, toks: Tok[]) {
+  try {
+    const j = await getJson(`${apiUrl(lang)}?${new URLSearchParams({
+      action: 'parse', page: pageTitle, prop: 'text', redirects: '1', disableeditsection: '1', disablelimitreport: '1', format: 'json', formatversion: '2'
+    })}`)
+    const idx = toks.flatMap((t, i) => (linkable(t) ? [i] : []))
+    let cur = 0
+    for (const { text, href } of pageLinks(j.parse.text as string)) {
+      const seq = tokenize(text, lang).filter(linkable).map(t => t.s)
+      if (!seq.length) continue
+      for (let s = cur; s < Math.min(idx.length, cur + LINK_WINDOW); s++) {
+        if (!seq.every((w, k) => (toks[idx[s + k]!] as LinkableTok | undefined)?.s === w)) continue
+        for (let k = 0; k < seq.length; k++) (toks[idx[s + k]!] as LinkableTok).l = href
+        cur = s + seq.length
+        break
+      }
+    }
+  } catch { /* links are a bonus: play without them */ }
 }
 
 function pickText(extract: string): string {

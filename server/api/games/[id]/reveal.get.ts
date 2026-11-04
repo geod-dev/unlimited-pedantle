@@ -6,6 +6,7 @@ export default defineEventHandler(async (event) => {
   return {
     title: game.title,
     url: game.url,
-    words: game.tokens.map(t => (t.k === 'p' || t.k === 'br' ? null : t.s))
+    words: game.tokens.map(t => (t.k === 'p' || t.k === 'br' ? null : t.s)),
+    links: game.tokens.map(t => ('l' in t ? t.l ?? null : null))
   }
 })

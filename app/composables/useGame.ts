@@ -20,7 +20,7 @@ export interface GuessEntry {
   best: number
 }
 
-export interface Ended { title: string; url: string; words: (string | null)[]; won: boolean }
+export interface Ended { title: string; url: string; words: (string | null)[]; links?: (string | null)[]; won: boolean }
 
 // Similarity range mapped onto the yellow -> red heat scale.
 export const HEAT_MIN = 0.26
@@ -126,7 +126,7 @@ export function useGame() {
   async function finish(isWin: boolean) {
     const g = game.value
     if (!g) return
-    const r = await $fetch<{ title: string; url: string; words: (string | null)[] }>(`/api/games/${g.id}/reveal`)
+    const r = await $fetch<{ title: string; url: string; words: (string | null)[]; links: (string | null)[] }>(`/api/games/${g.id}/reveal`)
     ended.value = { ...r, won: isWin }
     persist()
   }
