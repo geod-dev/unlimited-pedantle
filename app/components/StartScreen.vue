@@ -21,6 +21,15 @@ async function go(kind: 'fr' | 'en' | 'url') {
 
 <template>
   <main class="min-h-screen flex items-center justify-center p-4">
+    <UButton
+      class="fixed top-3 left-3"
+      color="neutral"
+      variant="ghost"
+      icon="i-simple-icons-github"
+      to="https://github.com/geod-dev/unlimited-pedantle"
+      target="_blank"
+      aria-label="GitHub repository"
+    />
     <UColorModeButton class="fixed top-3 right-3" />
     <UCard class="w-full max-w-lg">
       <div class="text-center space-y-1 mb-6">
