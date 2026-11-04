@@ -81,7 +81,7 @@ export function useGame() {
     } catch { /* ignore corrupted state */ }
   }
 
-  async function start(opts: { lang?: string; url?: string }) {
+  async function start(opts: { lang?: string; url?: string; level?: number }) {
     busy.value = true
     try {
       const g = await $fetch<GameInfo>('/api/games', { method: 'POST', body: opts })

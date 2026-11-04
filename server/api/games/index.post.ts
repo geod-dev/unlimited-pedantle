@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import { fetchArticle, parseArticleUrl, randomTitle } from '@/server/utils/wiki'
+import { LEVELS, fetchArticle, parseArticleUrl, randomTitle } from '@/server/utils/wiki'
 import { cacheGame, hydrate, saveGame } from '@/server/utils/game'
 
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ lang?: string; url?: string }>(event)
+  const body = await readBody<{ lang?: string; url?: string; level?: number }>(event)
 
   let article = null
   let lang: string
@@ -14,7 +14,8 @@ export default defineEventHandler(async (event) => {
     if (!article) throw createError({ statusCode: 422, statusMessage: 'This article is too short or not usable. Try another one.' })
   } else {
     lang = body?.lang === 'en' ? 'en' : 'fr'
-    for (let i = 0; i < 8 && !article; i++) article = await fetchArticle(lang, await randomTitle(lang))
+    const level = LEVELS.find(l => l === body?.level) ?? 3
+    for (let i = 0; i < 8 && !article; i++) article = await fetchArticle(lang, await randomTitle(lang, level))
     if (!article) throw createError({ statusCode: 502, statusMessage: 'Could not find an article, please retry.' })
   }
 

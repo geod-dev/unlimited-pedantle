@@ -17,10 +17,11 @@ async function getJson(url: string): Promise<any> {
   }
 }
 
-// ---- random article from Wikipedia's "Vital articles" level 4 (~10k general-knowledge topics) ----
-const VITAL_PREFIX = 'Vital articles/Level 4/'
-const VITAL_SKIP = /Article alerts|Archive|Draft|Removed|Candidates/i
-let vitalCache: string[] | null = null
+// ---- random article from Wikipedia's "Vital articles" lists (level 2: ~100 topics ... level 5: ~50k) ----
+export const LEVELS = [2, 3, 4, 5] as const
+export type Level = typeof LEVELS[number]
+const VITAL_SKIP = /Article alerts|Archive|Draft|Removed|Candidates|Nav bar/i
+const vitalCache = new Map<Level, string[]>()
 
 // Article links sit on numbered list lines: `# {{Icon|B}} '''[[Title|label]]''' ([[Wikipedia:Vital articles/Level 3|Level 3]])`
 function parseVital(wikitext: string): string[] {
@@ -33,12 +34,20 @@ function parseVital(wikitext: string): string[] {
   return out
 }
 
-async function vitalTitles(): Promise<string[]> {
-  if (vitalCache) return vitalCache
-  const listing = await getJson(`${apiUrl('en')}?${new URLSearchParams({
-    action: 'query', list: 'allpages', apnamespace: '4', apprefix: VITAL_PREFIX, aplimit: '200', format: 'json', formatversion: '2'
-  })}`)
-  const pages = (listing.query.allpages as { title: string }[]).map(p => p.title).filter(t => !VITAL_SKIP.test(t))
+async function vitalTitles(level: Level): Promise<string[]> {
+  const cached = vitalCache.get(level)
+  if (cached) return cached
+  const prefix = `Vital articles/Level ${level}`
+  const pages: string[] = []
+  for (let cont: string | undefined; ;) {
+    const listing = await getJson(`${apiUrl('en')}?${new URLSearchParams({
+      action: 'query', list: 'allpages', apnamespace: '4', apprefix: prefix, aplimit: '500', format: 'json', formatversion: '2',
+      ...(cont ? { apcontinue: cont } : {})
+    })}`)
+    for (const p of listing.query.allpages as { title: string }[]) if (!VITAL_SKIP.test(p.title)) pages.push(p.title)
+    cont = listing.continue?.apcontinue
+    if (!cont) break
+  }
   const titles = new Set<string>()
   for (let i = 0; i < pages.length; i += 50) {
     const j = await getJson(`${apiUrl('en')}?${new URLSearchParams({
@@ -46,8 +55,10 @@ async function vitalTitles(): Promise<string[]> {
     })}`)
     for (const p of j.query.pages) for (const t of parseVital(p.revisions?.[0]?.slots?.main?.content ?? '')) titles.add(t)
   }
-  if (titles.size < 1000) throw createError({ statusCode: 502, statusMessage: 'Could not load vital articles' })
-  return (vitalCache = [...titles])
+  if (titles.size < 50) throw createError({ statusCode: 502, statusMessage: 'Could not load vital articles' })
+  const list = [...titles]
+  vitalCache.set(level, list)
+  return list
 }
 
 // the list is English: resolve the article's title in the target language (null when it has no such edition)
@@ -58,8 +69,8 @@ async function localTitle(lang: string, enTitle: string): Promise<string | null>
   return j.query?.pages?.[0]?.langlinks?.[0]?.title ?? null
 }
 
-export async function randomTitle(lang: string): Promise<string> {
-  const list = await vitalTitles()
+export async function randomTitle(lang: string, level: Level = 3): Promise<string> {
+  const list = await vitalTitles(level)
   for (let i = 0; i < 5; i++) {
     const title = list[Math.floor(Math.random() * list.length)]!
     if (lang === 'en') return title
