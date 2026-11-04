@@ -17,33 +17,56 @@ async function getJson(url: string): Promise<any> {
   }
 }
 
-// ---- random popular article ("matchmaking": only well-viewed articles) ----
-const popularCache = new Map<string, string[]>()
+// ---- random article from Wikipedia's "Vital articles" level 4 (~10k general-knowledge topics) ----
+const VITAL_PREFIX = 'Vital articles/Level 4/'
+const VITAL_SKIP = /Article alerts|Archive|Draft|Removed|Candidates/i
+let vitalCache: string[] | null = null
 
-async function popularTitles(lang: string): Promise<string[]> {
-  if (popularCache.has(lang)) return popularCache.get(lang)!
-  const d = new Date()
-  for (let back = 1; back <= 4; back++) {
-    const m = new Date(d.getFullYear(), d.getMonth() - back, 1)
-    const url = `https://wikimedia.org/api/rest_v1/metrics/pageviews/top/${lang}.wikipedia/all-access/${m.getFullYear()}/${String(m.getMonth() + 1).padStart(2, '0')}/all-days`
-    try {
-      const j = await getJson(url)
-      const titles = (j.items[0].articles as { article: string }[])
-        .map(a => a.article)
-        .filter(a => !a.includes(':') && !/^(Main_Page|Accueil|Liste?_|List_of|Wikipédia)/i.test(a))
-        .slice(0, 700)
-      if (titles.length > 50) {
-        popularCache.set(lang, titles)
-        return titles
-      }
-    } catch { /* try an older month */ }
+// Article links sit on numbered list lines: `# {{Icon|B}} '''[[Title|label]]''' ([[Wikipedia:Vital articles/Level 3|Level 3]])`
+function parseVital(wikitext: string): string[] {
+  const out: string[] = []
+  for (const line of wikitext.split('\n')) {
+    if (!/^[#*]/.test(line)) continue
+    const m = line.replace(/\{\{[^}]*\}\}/g, '').match(/\[\[([^\]|#]+)/)
+    if (m && !/^(Wikipedia|File|Category|Template):/i.test(m[1]!)) out.push(m[1]!.trim())
   }
-  throw createError({ statusCode: 502, statusMessage: 'Could not load popular articles' })
+  return out
+}
+
+async function vitalTitles(): Promise<string[]> {
+  if (vitalCache) return vitalCache
+  const listing = await getJson(`${apiUrl('en')}?${new URLSearchParams({
+    action: 'query', list: 'allpages', apnamespace: '4', apprefix: VITAL_PREFIX, aplimit: '200', format: 'json', formatversion: '2'
+  })}`)
+  const pages = (listing.query.allpages as { title: string }[]).map(p => p.title).filter(t => !VITAL_SKIP.test(t))
+  const titles = new Set<string>()
+  for (let i = 0; i < pages.length; i += 50) {
+    const j = await getJson(`${apiUrl('en')}?${new URLSearchParams({
+      action: 'query', prop: 'revisions', rvprop: 'content', rvslots: 'main', titles: pages.slice(i, i + 50).join('|'), format: 'json', formatversion: '2'
+    })}`)
+    for (const p of j.query.pages) for (const t of parseVital(p.revisions?.[0]?.slots?.main?.content ?? '')) titles.add(t)
+  }
+  if (titles.size < 1000) throw createError({ statusCode: 502, statusMessage: 'Could not load vital articles' })
+  return (vitalCache = [...titles])
+}
+
+// the list is English: resolve the article's title in the target language (null when it has no such edition)
+async function localTitle(lang: string, enTitle: string): Promise<string | null> {
+  const j = await getJson(`${apiUrl('en')}?${new URLSearchParams({
+    action: 'query', prop: 'langlinks', lllang: lang, titles: enTitle, redirects: '1', format: 'json', formatversion: '2'
+  })}`)
+  return j.query?.pages?.[0]?.langlinks?.[0]?.title ?? null
 }
 
 export async function randomTitle(lang: string): Promise<string> {
-  const list = await popularTitles(lang)
-  return list[Math.floor(Math.random() * list.length)]!.replace(/_/g, ' ')
+  const list = await vitalTitles()
+  for (let i = 0; i < 5; i++) {
+    const title = list[Math.floor(Math.random() * list.length)]!
+    if (lang === 'en') return title
+    const local = await localTitle(lang, title)
+    if (local) return local
+  }
+  throw createError({ statusCode: 502, statusMessage: 'Could not find an article, please retry.' })
 }
 
 // ---- article url parsing ----
