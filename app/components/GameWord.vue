@@ -18,10 +18,12 @@ const revealed = computed(() => props.text ?? props.full ?? null)
 const label = computed(() => revealed.value ?? 'n'.repeat(props.n))
 
 // rectangle mode: hidden, hinted, or revealed by the last guess. Revealed earlier = plain text.
-const rect = computed(() => !revealed.value || props.isLastExact)
+// after the game, the selected guess colours the words it was close to, by heat
+const endHeat = computed(() => props.full && !props.text && props.lastSim !== undefined && props.lastSim >= HEAT_MIN ? props.lastSim : undefined)
+const rect = computed(() => !revealed.value || props.isLastExact || endHeat.value !== undefined)
 const hot = computed(() => !revealed.value && props.near && props.lastSim === props.near.sim) // hint from the last guess
 
-const rectStyle = computed(() => (hot.value ? { background: heatColor(props.near!.sim) } : undefined))
+const rectStyle = computed(() => (hot.value ? { background: heatColor(props.near!.sim) } : endHeat.value !== undefined ? { background: heatColor(endHeat.value) } : undefined))
 const interactive = computed(() => props.debug || (!revealed.value && props.clickable))
 // a word found by a guess, or a hint from one, selects that guess (like clicking it in the guesses list)
 const selectable = computed(() => !!props.text || !!props.near)
@@ -50,7 +52,7 @@ function onClick() {
       :is="href && revealed ? 'a' : 'span'"
       class="col-start-1 row-start-1"
       :class="[
-        !revealed ? 'text-transparent select-none' : isLastExact ? 'text-success font-medium' : full && !text ? 'text-muted' : '',
+        !revealed ? 'text-transparent select-none' : isLastExact ? 'text-success font-medium' : endHeat !== undefined ? 'text-neutral-900' : full && !text ? 'text-muted' : '',
         href && revealed ? 'underline underline-offset-4 hover:text-primary' : ''
       ]"
       :href="href && revealed ? href : undefined"

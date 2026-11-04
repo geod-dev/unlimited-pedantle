@@ -139,6 +139,7 @@ export function useGame() {
     if (!g) return
     const r = await $fetch<{ title: string; url: string; words: (string | null)[]; links: (string | null)[] }>(`/api/games/${g.id}/reveal`)
     ended.value = { ...r, won: isWin }
+    selected.value = -1 // nothing highlighted at the end: the player picks a guess to see its words
     persist()
   }
 
