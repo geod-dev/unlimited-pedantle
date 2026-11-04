@@ -1,17 +1,27 @@
 <script setup lang="ts">
 const {
-  game, history, selected, ended, peeked, busy, revealed, nearest, last, won,
+  game, history, selected, ended, peeked, pending, revealed, nearest, last, won,
   guess, finish, reset, peek, peekAll
 } = useGame()
 
 const input = ref('')
 const inputEl = ref<{ inputRef?: HTMLInputElement } | null>(null)
 
-async function submit() {
-  if (await guess(input.value)) input.value = ''
-  await nextTick()
+// not awaited: the guess loads in the background (loader in the guesses list) while the next word can already be typed
+function submit() {
+  const word = input.value
+  if (!word.trim()) return
+  input.value = ''
+  guess(word)
   inputEl.value?.inputRef?.focus()
 }
+
+// the input takes the colour of the selected (last) guess: green when it uncovered words, else its heat colour
+const inputStyle = computed(() => {
+  const l = last.value
+  const color = !l ? null : l.exact.length ? 'var(--ui-success)' : l.best >= HEAT_MIN ? heatColor(l.best) : null
+  return color ? { '--tw-ring-color': color, backgroundColor: `color-mix(in oklab, ${color} 18%, transparent)` } : undefined
+})
 
 const lastExact = computed(() => new Set(last.value?.exact.map(e => e.i)))
 const lastNear = computed(() => new Map(last.value?.near.map(n => [n.i, n.sim])))
@@ -152,9 +162,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <form v-if="!ended" class="sticky top-2 z-10 flex gap-2 bg-default/90 backdrop-blur rounded-lg p-1" @submit.prevent="submit">
           <UInput
             ref="inputEl" v-model="input" size="xl" class="flex-1" autofocus autocomplete="off" autocapitalize="off"
-            spellcheck="false" placeholder="Type a word…" icon="i-lucide-pencil" :disabled="busy"
+            spellcheck="false" :placeholder="last ? (last.typed ?? last.word) : 'Type a word…'" icon="i-lucide-pencil" :style="inputStyle"
           />
-          <UButton type="submit" size="xl" :loading="busy" :disabled="!input.trim()">Guess</UButton>
         </form>
 
         <UCard>
@@ -193,7 +202,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             </div>
           </template>
           <ul class="max-h-[60vh] overflow-y-auto divide-y divide-default">
-            <li v-if="!recent.length" class="p-4 text-sm text-muted">Nothing yet. Start with common words!</li>
+            <li v-if="!recent.length && !pending.length" class="p-4 text-sm text-muted">Nothing yet. Start with common words!</li>
+            <li v-for="p in [...pending].reverse()" :key="'p' + p.id" class="flex items-center gap-2 px-3 py-2 text-muted">
+              <span class="flex-1 truncate font-medium">{{ p.word }}</span>
+              <UIcon name="i-lucide-loader-circle" class="size-4 shrink-0 animate-spin" />
+            </li>
             <li v-for="{ h, i } in recent" :key="i">
               <button
                 type="button" class="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-elevated"

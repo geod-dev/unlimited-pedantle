@@ -27,6 +27,7 @@ export const HEAT_MIN = 0.26
 export const HEAT_MAX = 0.5 // at or above this similarity the server reveals the word
 
 const STORAGE_KEY = 'pedantle:game:v2' // bumped when the database was reset: old game ids no longer exist
+let pendingSeq = 0
 
 export function useGame() {
   const game = useState<GameInfo | null>('game', () => null)
@@ -34,6 +35,7 @@ export function useGame() {
   const selected = useState<number>('selected', () => -1) // history index shown as "last guess"
   const ended = useState<Ended | null>('ended', () => null)
   const peeked = useState<Record<number, boolean>>('peeked', () => ({}))
+  const pending = useState<{ id: number; word: string }[]>('pending', () => [])
   const busy = ref(false)
   const toast = useToast()
 
@@ -83,7 +85,7 @@ export function useGame() {
     busy.value = true
     try {
       const g = await $fetch<GameInfo>('/api/games', { method: 'POST', body: opts })
-      game.value = g; history.value = []; selected.value = -1; ended.value = null; peeked.value = {}
+      game.value = g; history.value = []; selected.value = -1; ended.value = null; peeked.value = {}; pending.value = []
       persist()
     } catch (e: any) {
       toast.add({ title: 'Could not start a game', description: e?.data?.statusMessage ?? e?.statusMessage ?? 'Please retry.', color: 'error' })
@@ -92,9 +94,10 @@ export function useGame() {
     }
   }
 
+  /** Guesses run in parallel: each one sits in `pending` (shown with a loader) until the server answers. */
   async function guess(raw: string): Promise<boolean> {
     const g = game.value
-    if (!g || busy.value) return false
+    if (!g) return false
     const word = raw.normalize('NFC').trim().toLowerCase()
     if (!word) return false
     const again = history.value.findIndex(h => (h.typed ?? h.word) === word || h.word.split('/').includes(word))
@@ -103,12 +106,20 @@ export function useGame() {
       toast.add({ title: 'Already guessed', description: `“${word}” is highlighted again.`, color: 'neutral' })
       return true
     }
-    busy.value = true
+    if (pending.value.some(p => p.word === word)) return true
+    const entry = { id: ++pendingSeq, word }
+    pending.value = [...pending.value, entry]
     try {
       const r = await $fetch<any>(`/api/games/${g.id}/guess`, { method: 'POST', body: { word } })
+      if (game.value?.id !== g.id || ended.value) return false // new game or game over while waiting
       if (!r.valid) {
         toast.add({ title: r.reason, description: `“${word}”`, color: 'warning' })
         return false
+      }
+      const dup = history.value.findIndex(h => h.word === r.word) // another spelling of a word already guessed
+      if (dup >= 0) {
+        selected.value = dup
+        return true
       }
       history.value.push({ typed: r.typed, word: r.word, exact: r.exact, near: r.near, best: r.best })
       selected.value = history.value.length - 1
@@ -116,10 +127,10 @@ export function useGame() {
       persist()
       return true
     } catch (e: any) {
-      toast.add({ title: 'Something went wrong', description: e?.data?.statusMessage ?? 'Please retry.', color: 'error' })
+      if (game.value?.id === g.id) toast.add({ title: 'Something went wrong', description: e?.data?.statusMessage ?? 'Please retry.', color: 'error' })
       return false
     } finally {
-      busy.value = false
+      pending.value = pending.value.filter(p => p.id !== entry.id)
     }
   }
 
@@ -132,7 +143,7 @@ export function useGame() {
   }
 
   function reset() {
-    game.value = null; history.value = []; selected.value = -1; ended.value = null; peeked.value = {}
+    game.value = null; history.value = []; selected.value = -1; ended.value = null; peeked.value = {}; pending.value = []
     try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
   }
 
@@ -143,7 +154,7 @@ export function useGame() {
     peeked.value = all
   }
 
-  return { game, history, selected, ended, peeked, busy, revealed, nearest, last, won, start, guess, finish, reset, restore, peek, peekAll, persist }
+  return { game, history, selected, ended, peeked, pending, busy, revealed, nearest, last, won, start, guess, finish, reset, restore, peek, peekAll, persist }
 }
 
 export function heatColor(sim: number): string {
