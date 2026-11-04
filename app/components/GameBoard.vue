@@ -51,6 +51,16 @@ const linkOf = (i: number) => {
   return l ? `https://${game.value!.lang}.wikipedia.org/wiki/${l}` : null
 }
 
+// whitespace between two revealed words of the same link is underlined too, so the link reads as one
+type Entry = { t: ClientTok; i: number }
+const shown = (i: number) => !!(textOf(i) ?? (ended.value && peeked.value[i] ? ended.value.words[i] : null))
+function bridged(para: Entry[], p: number) {
+  const a = para[p - 1], b = para[p + 1], sep = para[p]?.t
+  if (!a || !b || !('n' in a.t) || !('n' in b.t) || sep?.k !== 'p' || sep.s.trim()) return false
+  const l = linkOf(a.i)
+  return !!l && l === linkOf(b.i) && shown(a.i) && shown(b.i)
+}
+
 // ---- hidden debug mode: Ctrl+Alt+D (or ?debug in the URL) lets you click any rectangle / word to show or hide it ----
 const debug = ref(false)
 const debugWords = ref<(string | null)[] | null>(null)
@@ -228,10 +238,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           </h2>
 
           <p v-for="(para, pi) in bodyBlocks" :key="pi" class="leading-9 mb-3 text-lg">
-            <template v-for="{ t, i } in para" :key="i">
+            <template v-for="({ t, i }, pi2) in para" :key="i">
               <GameWord v-if="'n' in t" :n="t.n" :text="textOf(i)" :near="nearOf(i)" :is-last-exact="lastExact.has(i)"
                 :last-sim="lastNear.get(i)" :full="ended && peeked[i] ? ended.words[i] : null" :clickable="!!ended" :debug="debug" :small="t.k === 'u'"
                 :href="linkOf(i)" @peek="onPeek(i)" @select="selectGuessAt(i)" @hover="onHover(i, $event)" @leave="onLeave" />
+              <span v-else-if="bridged(para, pi2)" class="underline underline-offset-4">{{ t.s }}</span>
               <template v-else>{{ t.s }}</template>
             </template>
           </p>
