@@ -174,7 +174,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <form v-if="!ended" class="sticky top-2 z-10 flex gap-2 bg-default/90 backdrop-blur rounded-lg p-1" @submit.prevent="submit">
           <UInput
             ref="inputEl" v-model="input" size="xl" class="flex-1" autofocus autocomplete="off" autocapitalize="off"
-            spellcheck="false" :placeholder="last ? (last.typed ?? last.word) : 'Type a word…'" icon="i-lucide-pencil" :style="inputStyle"
+            spellcheck="false" :placeholder="last ? (last.typed ?? last.word) : 'Type a word…'" :style="inputStyle"
           />
         </form>
 
