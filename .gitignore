@@ -26,3 +26,5 @@ data/
 
 # Vercel build output
 .vercel
+
+CLAUDE.md
