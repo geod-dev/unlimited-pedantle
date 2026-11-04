@@ -74,8 +74,27 @@ interface Tip { i: number; x: number; y: number; data: TipData | null; error?: s
 const tip = ref<Tip | null>(null)
 const simCache = new Map<string, TipData>()
 
+// end of game: the guesses matching the hovered word, closest first (none = no popover)
+const endTip = ref<{ x: number; y: number; rows: { word: string; sim: number }[] } | null>(null)
+
+function showMatches(i: number, box: DOMRect) {
+  const rows: { word: string; sim: number }[] = []
+  for (const h of history.value) {
+    if (h.exact.some(e => e.i === i)) rows.push({ word: h.word, sim: 1 })
+    else {
+      const n = h.near.find(n => n.i === i)
+      if (n) rows.push({ word: h.word, sim: n.sim })
+    }
+  }
+  rows.sort((a, b) => b.sim - a.sim)
+  endTip.value = rows.length ? { x: Math.max(8, box.left), y: box.bottom + 6, rows } : null
+}
+
+function onLeave() { tip.value = null; endTip.value = null }
+
 async function onHover(i: number, ev: MouseEvent) {
   const box = (ev.currentTarget as HTMLElement).getBoundingClientRect()
+  if (!debug.value) return ended.value ? showMatches(i, box) : undefined
   const key = `${i}|${history.value.length}`
   tip.value = { i, x: Math.max(8, box.left), y: box.bottom + 6, data: simCache.get(key) ?? null }
   if (simCache.has(key)) return
@@ -155,6 +174,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     </div>
 
     <div
+      v-if="!debug && endTip"
+      class="fixed z-50 pointer-events-none rounded-lg border border-default bg-default shadow-lg p-2.5 text-sm min-w-44"
+      :style="{ left: endTip.x + 'px', top: endTip.y + 'px' }"
+    >
+      <ul class="space-y-0.5">
+        <li v-for="r in endTip.rows" :key="r.word" class="flex items-center gap-2">
+          <span class="size-2.5 rounded-full shrink-0" :style="{ background: r.sim >= 1 ? 'var(--ui-success)' : r.sim >= HEAT_MIN ? heatColor(r.sim) : 'var(--ui-border-accented)' }" />
+          <span class="flex-1">{{ r.word }}</span>
+          <span class="tabular-nums text-muted">{{ Math.round(r.sim * 100) }}%</span>
+        </li>
+      </ul>
+    </div>
+
+    <div
       v-if="ended"
       class="flex items-center justify-between gap-3 rounded-lg px-4 py-3 ring ring-inset"
       :class="ended.won ? 'bg-success/10 text-success ring-success/25' : 'bg-warning/10 text-warning ring-warning/25'"
@@ -183,7 +216,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <template v-for="{ t, i } in titleToks" :key="i">
               <GameWord v-if="'n' in t" :n="t.n" :text="textOf(i)" :near="nearOf(i)" :is-last-exact="lastExact.has(i)"
                 :last-sim="lastNear.get(i)" :full="ended && peeked[i] ? ended.words[i] : null" :clickable="!!ended" :debug="debug" :small="t.k === 'u'"
-                :href="ended?.url" @peek="onPeek(i)" @select="selectGuessAt(i)" @hover="onHover(i, $event)" @leave="tip = null" />
+                :href="ended?.url" @peek="onPeek(i)" @select="selectGuessAt(i)" @hover="onHover(i, $event)" @leave="onLeave" />
               <template v-else>{{ t.s }}</template>
             </template>
             <a
@@ -198,7 +231,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <template v-for="{ t, i } in para" :key="i">
               <GameWord v-if="'n' in t" :n="t.n" :text="textOf(i)" :near="nearOf(i)" :is-last-exact="lastExact.has(i)"
                 :last-sim="lastNear.get(i)" :full="ended && peeked[i] ? ended.words[i] : null" :clickable="!!ended" :debug="debug" :small="t.k === 'u'"
-                :href="linkOf(i)" @peek="onPeek(i)" @select="selectGuessAt(i)" @hover="onHover(i, $event)" @leave="tip = null" />
+                :href="linkOf(i)" @peek="onPeek(i)" @select="selectGuessAt(i)" @hover="onHover(i, $event)" @leave="onLeave" />
               <template v-else>{{ t.s }}</template>
             </template>
           </p>

@@ -43,8 +43,8 @@ function onClick() {
     ]"
     :style="rectStyle"
     @click="onClick"
-    @mouseenter="debug && emit('hover', $event)"
-    @mouseleave="debug && emit('leave')"
+    @mouseenter="emit('hover', $event)"
+    @mouseleave="emit('leave')"
   >
     <component
       :is="href && revealed ? 'a' : 'span'"
