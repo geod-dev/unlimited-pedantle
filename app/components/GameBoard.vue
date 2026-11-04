@@ -54,11 +54,11 @@ const linkOf = (i: number) => {
 // whitespace between two revealed words of the same link is underlined too, so the link reads as one
 type Entry = { t: ClientTok; i: number }
 const shown = (i: number) => !!(textOf(i) ?? (ended.value && (i < game.value!.titleLen || peeked.value[i]) ? ended.value.words[i] : null))
-function bridged(para: Entry[], p: number) {
+function bridge(para: Entry[], p: number, linkFor: (i: number) => string | null | undefined) {
   const a = para[p - 1], b = para[p + 1], sep = para[p]?.t
-  if (!a || !b || !('n' in a.t) || !('n' in b.t) || sep?.k !== 'p' || sep.s.trim()) return false
-  const l = linkOf(a.i)
-  return !!l && l === linkOf(b.i) && shown(a.i) && shown(b.i)
+  if (!a || !b || !('n' in a.t) || !('n' in b.t) || sep?.k !== 'p' || sep.s.trim()) return null
+  const l = linkFor(a.i)
+  return l && l === linkFor(b.i) && shown(a.i) && shown(b.i) ? l : null
 }
 
 // ---- hidden debug mode: Ctrl+Alt+D (or ?debug in the URL) lets you click any rectangle / word to show or hide it ----
@@ -221,18 +221,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <UBadge color="neutral" variant="subtle" size="sm" class="mb-3">{{ wordsFound }}/{{ total }} words · {{ history.length }} guesses</UBadge>
           <div class="flex items-start justify-between gap-3 mb-5">
           <h2 class="text-3xl font-bold leading-snug">
-            <template v-for="{ t, i } in titleToks" :key="i">
+            <template v-for="({ t, i }, ti) in titleToks" :key="i">
               <GameWord v-if="'n' in t" :n="t.n" :text="textOf(i)" :near="nearOf(i)" :is-last-exact="lastExact.has(i)"
                 :last-sim="lastNear.get(i)" :full="ended ? ended.words[i] : null" :clickable="!!ended" :debug="debug" :small="t.k === 'u'"
                 :href="ended?.url" @peek="onPeek(i)" @select="selectGuessAt(i)" @hover="onHover(i, $event)" @leave="onLeave" />
+              <a
+                v-else-if="bridge(titleToks, ti, () => ended?.url)" :href="ended?.url" target="_blank" rel="noopener"
+                class="underline underline-offset-4 hover:text-primary"
+              >{{ t.s }}</a>
               <template v-else>{{ t.s }}</template>
             </template>
-            <a
-              v-if="ended" :href="ended.url" target="_blank" rel="noopener" title="Open on Wikipedia"
-              class="inline-block align-middle ml-2 opacity-40 hover:opacity-100 transition-opacity"
-            >
-              <UIcon name="i-simple-icons-wikipedia" class="size-7" />
-            </a>
           </h2>
           <UButton v-if="ended" size="sm" color="neutral" variant="subtle" class="shrink-0" @click="peekAll">Reveal all</UButton>
           </div>
@@ -242,7 +240,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               <GameWord v-if="'n' in t" :n="t.n" :text="textOf(i)" :near="nearOf(i)" :is-last-exact="lastExact.has(i)"
                 :last-sim="lastNear.get(i)" :full="ended && peeked[i] ? ended.words[i] : null" :clickable="!!ended" :debug="debug" :small="t.k === 'u'"
                 :href="linkOf(i)" @peek="onPeek(i)" @select="selectGuessAt(i)" @hover="onHover(i, $event)" @leave="onLeave" />
-              <span v-else-if="bridged(para, pi2)" class="underline underline-offset-4">{{ t.s }}</span>
+              <a
+                v-else-if="bridge(para, pi2, linkOf)" :href="bridge(para, pi2, linkOf)!" target="_blank" rel="noopener"
+                class="underline underline-offset-4 hover:text-primary"
+              >{{ t.s }}</a>
               <template v-else>{{ t.s }}</template>
             </template>
           </p>
