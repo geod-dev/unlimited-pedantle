@@ -61,6 +61,9 @@ function bridge(para: Entry[], p: number, linkFor: (i: number) => string | null 
   return l && l === linkFor(b.i) && shown(a.i) && shown(b.i) ? l : null
 }
 
+// the bridging space is greyed like the words around it when both were only revealed at the end (not guessed)
+const bridgeMuted = (para: Entry[], p: number) => !textOf(para[p - 1]!.i) && !textOf(para[p + 1]!.i)
+
 // ---- hidden debug mode: Ctrl+Alt+D (or ?debug in the URL) lets you click any rectangle / word to show or hide it ----
 const debug = ref(false)
 const debugWords = ref<(string | null)[] | null>(null)
@@ -227,7 +230,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                 :href="ended?.url" @peek="onPeek(i)" @select="selectGuessAt(i)" @hover="onHover(i, $event)" @leave="onLeave" />
               <a
                 v-else-if="bridge(titleToks, ti, () => ended?.url)" :href="ended?.url" target="_blank" rel="noopener"
-                class="underline underline-offset-4 hover:text-primary"
+                class="underline underline-offset-4 hover:text-primary" :class="{ 'text-muted': bridgeMuted(titleToks, ti) }"
               >{{ t.s }}</a>
               <template v-else>{{ t.s }}</template>
             </template>
@@ -242,7 +245,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                 :href="linkOf(i)" @peek="onPeek(i)" @select="selectGuessAt(i)" @hover="onHover(i, $event)" @leave="onLeave" />
               <a
                 v-else-if="bridge(para, pi2, linkOf)" :href="bridge(para, pi2, linkOf)!" target="_blank" rel="noopener"
-                class="underline underline-offset-4 hover:text-primary"
+                class="underline underline-offset-4 hover:text-primary" :class="{ 'text-muted': bridgeMuted(para, pi2) }"
               >{{ t.s }}</a>
               <template v-else>{{ t.s }}</template>
             </template>
