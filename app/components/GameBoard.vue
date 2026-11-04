@@ -53,7 +53,7 @@ const linkOf = (i: number) => {
 
 // whitespace between two revealed words of the same link is underlined too, so the link reads as one
 type Entry = { t: ClientTok; i: number }
-const shown = (i: number) => !!(textOf(i) ?? (ended.value && peeked.value[i] ? ended.value.words[i] : null))
+const shown = (i: number) => !!(textOf(i) ?? (ended.value && (i < game.value!.titleLen || peeked.value[i]) ? ended.value.words[i] : null))
 function bridged(para: Entry[], p: number) {
   const a = para[p - 1], b = para[p + 1], sep = para[p]?.t
   if (!a || !b || !('n' in a.t) || !('n' in b.t) || sep?.k !== 'p' || sep.s.trim()) return false
@@ -223,7 +223,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <h2 class="text-3xl font-bold leading-snug">
             <template v-for="{ t, i } in titleToks" :key="i">
               <GameWord v-if="'n' in t" :n="t.n" :text="textOf(i)" :near="nearOf(i)" :is-last-exact="lastExact.has(i)"
-                :last-sim="lastNear.get(i)" :full="ended && peeked[i] ? ended.words[i] : null" :clickable="!!ended" :debug="debug" :small="t.k === 'u'"
+                :last-sim="lastNear.get(i)" :full="ended ? ended.words[i] : null" :clickable="!!ended" :debug="debug" :small="t.k === 'u'"
                 :href="ended?.url" @peek="onPeek(i)" @select="selectGuessAt(i)" @hover="onHover(i, $event)" @leave="onLeave" />
               <template v-else>{{ t.s }}</template>
             </template>

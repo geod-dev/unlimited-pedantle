@@ -139,12 +139,6 @@ export function useGame() {
     if (!g) return
     const r = await $fetch<{ title: string; url: string; words: (string | null)[]; links: (string | null)[] }>(`/api/games/${g.id}/reveal`)
     ended.value = { ...r, won: isWin }
-    // giving up shows the title right away, the body stays hidden until clicked or "Reveal all"
-    if (!isWin) {
-      const title: Record<number, boolean> = {}
-      g.tokens.slice(0, g.titleLen).forEach((t, i) => { if (t.k !== 'p' && t.k !== 'br') title[i] = true })
-      peeked.value = { ...peeked.value, ...title }
-    }
     persist()
   }
 
