@@ -110,7 +110,19 @@ function pickText(extract: string): string {
  * The word itself when it is a Wiktionary/Wikipedia page; otherwise the accented spellings Wiktionary knows
  * ("incarcerees" -> ["incarcérées"]). Empty when the word doesn't exist.
  */
-export async function findSpellings(lang: string, word: string): Promise<string[]> {
+export function findSpellings(lang: string, word: string): Promise<string[]> {
+  // Wikipedia throttles per IP, so each distinct word is looked up once; concurrent guesses share the same request.
+  const key = `${lang}:${word}`
+  const hit = spellingCache.get(key)
+  if (hit) return hit
+  const p = lookupSpellings(lang, word)
+  spellingCache.set(key, p)
+  p.catch(() => spellingCache.delete(key)) // never cache a failure: the next guess retries
+  return p
+}
+const spellingCache = new Map<string, Promise<string[]>>()
+
+async function lookupSpellings(lang: string, word: string): Promise<string[]> {
   if (await wordExists(lang, word)) return [word]
   try {
     // Wiktionary's search ignores accents and returns the accented titles
@@ -134,8 +146,9 @@ async function wordExists(lang: string, word: string): Promise<boolean> {
     return (j.query.pages as any[]).some(p => !p.missing && !p.invalid)
   }
   try {
-    const first = await Promise.all([check('wiktionary', lang, [word]), check('wikipedia', lang, [cap, word])])
-    if (first.some(Boolean)) return true
+    // sequential, cheapest and most likely first: most guesses stop after a single request
+    if (await check('wiktionary', lang, [word])) return true
+    if (await check('wikipedia', lang, [cap, word])) return true
     return lang !== 'en' && (await check('wikipedia', 'en', [cap]))
   } catch {
     // don't tell the player a real word is unknown just because Wikipedia is throttling us
