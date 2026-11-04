@@ -145,12 +145,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 <template>
   <div class="max-w-6xl mx-auto p-3 sm:p-6 space-y-4">
     <header class="flex items-center justify-between gap-2">
-      <h1 class="text-xl font-bold">Unlimited Pedantle</h1>
+      <div class="flex items-center gap-2">
+        <h1 class="text-xl font-bold">Unlimited Pedantle</h1>
+        <UColorModeButton />
+      </div>
       <div class="flex items-center gap-2">
         <UBadge v-if="debug" color="warning" variant="solid">DEBUG</UBadge>
         <UButton v-if="!ended" size="sm" color="neutral" variant="ghost" icon="i-lucide-flag" @click="finish(false)">Give up</UButton>
         <UButton v-else size="sm" color="primary" icon="i-lucide-rotate-ccw" @click="playAgain">Play again</UButton>
-        <UColorModeButton />
       </div>
     </header>
 
