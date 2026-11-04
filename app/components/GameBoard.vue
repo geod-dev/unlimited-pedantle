@@ -250,7 +250,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       </section>
 
       <aside class="lg:sticky lg:top-4">
-        <UCard :ui="{ body: 'p-0 sm:p-0' }">
+        <UCard :ui="{ header: 'px-3 py-2 sm:px-3', body: 'p-0 sm:p-0' }">
           <template #header>
             <div class="flex items-center gap-2">
               <span class="font-semibold">Guesses</span>
