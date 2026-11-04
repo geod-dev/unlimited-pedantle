@@ -1,0 +1,49 @@
+<script setup lang="ts">
+const props = defineProps<{
+  n: number // length of the hidden word
+  text?: string // revealed word
+  near?: { word: string; sim: number } // best hint guess for this position
+  isLastExact: boolean // revealed by the last guess
+  lastSim?: number // similarity of this position for the last guess
+  full?: string | null // word shown after the game ended
+  clickable?: boolean
+  debug?: boolean
+  small?: boolean // ordinal suffix (e, ème, st...)
+}>()
+const emit = defineEmits<{ peek: []; hover: [ev: MouseEvent]; leave: [] }>()
+
+const revealed = computed(() => props.text ?? props.full ?? null)
+// the word's own text: the real word once revealed, otherwise an invisible placeholder that gives the rectangle its width
+const label = computed(() => revealed.value ?? 'n'.repeat(props.n))
+
+// rectangle mode: hidden, hinted, or revealed by the last guess. Revealed earlier = plain text.
+const rect = computed(() => !revealed.value || props.isLastExact)
+const hot = computed(() => !revealed.value && props.near && props.lastSim === props.near.sim) // hint from the last guess
+
+const rectStyle = computed(() => (hot.value ? { background: heatColor(props.near!.sim) } : undefined))
+const interactive = computed(() => props.debug || (!revealed.value && props.clickable))
+</script>
+
+<template>
+  <span
+    class="inline-grid place-items-center leading-[1.25] whitespace-nowrap"
+    :class="[
+      small ? 'text-[0.7em] align-super' : 'align-baseline',
+      rect ? 'rounded-[3px] px-[0.25em]' : '',
+      !rect ? '' : revealed ? 'bg-success/5' : hot ? '' : 'bg-neutral-300 dark:bg-neutral-600',
+      interactive ? 'cursor-pointer' : ''
+    ]"
+    :style="rectStyle"
+    @click="interactive && emit('peek')"
+    @mouseenter="debug && emit('hover', $event)"
+    @mouseleave="debug && emit('leave')"
+  >
+    <span
+      class="col-start-1 row-start-1"
+      :class="[
+        !revealed ? 'text-transparent select-none' : isLastExact ? 'text-success font-medium' : full && !text ? 'text-muted underline decoration-dotted' : ''
+      ]"
+    >{{ label }}</span>
+    <span v-if="near && !revealed" class="col-start-1 row-start-1" :class="hot ? 'text-neutral-900' : ''">{{ near.word }}</span>
+  </span>
+</template>
