@@ -91,8 +91,20 @@ async function onHover(i: number, ev: MouseEvent) {
   }
 }
 
+// select the guess that uncovered the word at position i, or else the one behind its hint
+function selectGuessAt(i: number) {
+  const exact = history.value.findIndex(h => h.exact.some(e => e.i === i))
+  if (exact >= 0) return void (selected.value = exact)
+  const near = nearest.value[i]
+  if (near) selected.value = history.value.findIndex(h => h.word === near.word && h.near.some(n => n.i === i && n.sim === near.sim))
+}
+
 function onKey(e: KeyboardEvent) {
-  if (e.ctrlKey && e.altKey && e.key.toLowerCase() === 'd') setDebug(!debug.value)
+  if (e.ctrlKey && e.altKey && e.key.toLowerCase() === 'd') return setDebug(!debug.value)
+  // typing while something else is focused (e.g. after clicking a word) goes back to the input
+  const el = document.activeElement as HTMLElement | null
+  const typing = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
+  if (!ended.value && !typing && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) inputEl.value?.inputRef?.focus()
 }
 onMounted(() => {
   window.addEventListener('keydown', onKey)
@@ -171,7 +183,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <template v-for="{ t, i } in titleToks" :key="i">
               <GameWord v-if="'n' in t" :n="t.n" :text="textOf(i)" :near="nearOf(i)" :is-last-exact="lastExact.has(i)"
                 :last-sim="lastNear.get(i)" :full="ended && peeked[i] ? ended.words[i] : null" :clickable="!!ended" :debug="debug" :small="t.k === 'u'"
-                :href="ended?.url" @peek="onPeek(i)" @hover="onHover(i, $event)" @leave="tip = null" />
+                :href="ended?.url" @peek="onPeek(i)" @select="selectGuessAt(i)" @hover="onHover(i, $event)" @leave="tip = null" />
               <template v-else>{{ t.s }}</template>
             </template>
             <a
@@ -186,7 +198,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <template v-for="{ t, i } in para" :key="i">
               <GameWord v-if="'n' in t" :n="t.n" :text="textOf(i)" :near="nearOf(i)" :is-last-exact="lastExact.has(i)"
                 :last-sim="lastNear.get(i)" :full="ended && peeked[i] ? ended.words[i] : null" :clickable="!!ended" :debug="debug" :small="t.k === 'u'"
-                :href="linkOf(i)" @peek="onPeek(i)" @hover="onHover(i, $event)" @leave="tip = null" />
+                :href="linkOf(i)" @peek="onPeek(i)" @select="selectGuessAt(i)" @hover="onHover(i, $event)" @leave="tip = null" />
               <template v-else>{{ t.s }}</template>
             </template>
           </p>

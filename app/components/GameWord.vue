@@ -11,7 +11,7 @@ const props = defineProps<{
   small?: boolean // ordinal suffix (e, ème, st...)
   href?: string | null // link target, only used once the game is over and the word is shown
 }>()
-const emit = defineEmits<{ peek: []; hover: [ev: MouseEvent]; leave: [] }>()
+const emit = defineEmits<{ peek: []; select: []; hover: [ev: MouseEvent]; leave: [] }>()
 
 const revealed = computed(() => props.text ?? props.full ?? null)
 // the word's own text: the real word once revealed, otherwise an invisible placeholder that gives the rectangle its width
@@ -23,6 +23,13 @@ const hot = computed(() => !revealed.value && props.near && props.lastSim === pr
 
 const rectStyle = computed(() => (hot.value ? { background: heatColor(props.near!.sim) } : undefined))
 const interactive = computed(() => props.debug || (!revealed.value && props.clickable))
+// a word found by a guess, or a hint from one, selects that guess (like clicking it in the guesses list)
+const selectable = computed(() => !!props.text || !!props.near)
+
+function onClick() {
+  if (interactive.value) emit('peek')
+  else if (selectable.value) emit('select')
+}
 </script>
 
 <template>
@@ -32,10 +39,10 @@ const interactive = computed(() => props.debug || (!revealed.value && props.clic
       small ? 'text-[0.7em] align-super' : 'align-baseline',
       rect ? 'rounded-[3px] px-[0.25em]' : '',
       !rect ? '' : revealed ? 'bg-success/5' : hot ? '' : 'bg-neutral-300 dark:bg-neutral-600',
-      interactive ? 'cursor-pointer' : ''
+      interactive || selectable ? 'cursor-pointer' : ''
     ]"
     :style="rectStyle"
-    @click="interactive && emit('peek')"
+    @click="onClick"
     @mouseenter="debug && emit('hover', $event)"
     @mouseleave="debug && emit('leave')"
   >
